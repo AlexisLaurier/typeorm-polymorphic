@@ -35,7 +35,9 @@ const PrimaryColumn = (options: PolymorphicMetadataInterface): string =>
   options.primaryColumn || 'id';
 
 export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
-  private getPolymorphicMetadata(): Array<PolymorphicMetadataInterface> {
+  private getPolymorphicMetadata(
+    filterToFollowingRelation: string[] = null,
+  ): Array<PolymorphicMetadataInterface> {
     const keys = Reflect.getMetadataKeys(
       (this.metadata.target as Function)['prototype'],
     );
@@ -63,7 +65,11 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
           }
         }
 
-        return keys;
+        return keys.filter(
+          (element) =>
+            !filterToFollowingRelation ||
+            filterToFollowingRelation.includes(element.propertyKey),
+        );
       },
       [],
     );
@@ -88,12 +94,20 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     return options.type === 'parent';
   }
 
-  public async hydrateMany(entities: E[]): Promise<E[]> {
-    return Promise.all(entities.map((ent) => this.hydrateOne(ent)));
+  public async hydrateMany(
+    entities: E[],
+    limitToFollowingRelation: string[] = null,
+  ): Promise<E[]> {
+    return Promise.all(
+      entities.map((ent) => this.hydrateOne(ent, limitToFollowingRelation)),
+    );
   }
 
-  public async hydrateOne(entity: E): Promise<E> {
-    const metadata = this.getPolymorphicMetadata();
+  public async hydrateOne(
+    entity: E,
+    limitToFollowingRelation: string[] = null,
+  ): Promise<E> {
+    const metadata = this.getPolymorphicMetadata(limitToFollowingRelation);
 
     return this.hydratePolymorphs(entity, metadata);
   }
@@ -172,7 +186,9 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
         : {
             where: {
               [entityIdColumn(options)]: parent[PrimaryColumn(options)],
-              [entityTypeColumn(options)]: entityType,
+              [entityTypeColumn(options)]:
+                // @ts-expect-error
+                parent.name || parent.constructor.name,
             },
           },
     );
@@ -313,13 +329,19 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     optionsOrConditions?: FindConditions<E> | FindManyOptions<E>,
   ): Promise<E[]> {
     const results = await super.find(optionsOrConditions);
+    let options = optionsOrConditions as any;
+    let requestedRelation =
+      options && options.relations && Array.isArray(options.relations)
+        ? options.relations
+        : [];
 
     if (!this.isPolymorph()) {
       return results;
     }
-
-    const metadata = this.getPolymorphicMetadata();
-
+    const metadata = this.getPolymorphicMetadata(requestedRelation);
+    if (!metadata.length) {
+      return results;
+    }
     return Promise.all(
       results.map((entity) => this.hydratePolymorphs(entity, metadata)),
     );
@@ -347,7 +369,11 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       | FindOneOptions<E>,
     optionsOrConditions?: FindConditions<E> | FindOneOptions<E>,
   ): Promise<E | undefined> {
-    const polymorphicMetadata = this.getPolymorphicMetadata();
+    let options = optionsOrConditions as any;
+    let requestedRelation =
+      options && Array.isArray(options.relations) ? options.relations : [];
+
+    const polymorphicMetadata = this.getPolymorphicMetadata(requestedRelation);
 
     if (Object.keys(polymorphicMetadata).length === 0) {
       return idOrOptionsOrConditions &&
