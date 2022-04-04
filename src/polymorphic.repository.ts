@@ -25,6 +25,7 @@ type PolymorphicHydrationType = {
   key: string;
   type: 'children' | 'parent';
   values: PolymorphicChildInterface[] | PolymorphicChildInterface;
+  hasMany: boolean;
 };
 
 const entityTypeColumn = (options: PolymorphicMetadataInterface): string =>
@@ -128,7 +129,9 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
           ? vals.values.filter((v) => typeof v !== 'undefined' && v !== null)
           : vals.values;
       e[vals.key] =
-        vals.type === 'parent' && Array.isArray(values) ? values[0] : values; // TODO should be condition for !hasMany
+        (vals.type === 'parent' || !vals.hasMany) && Array.isArray(values)
+          ? values[0]
+          : values; // TODO should be condition for !hasMany
       return e;
     }, entity);
   }
@@ -154,6 +157,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     return {
       key: options.propertyKey,
       type: options.type,
+      hasMany: options.hasMany,
       values: (options.hasMany &&
       Array.isArray(results) &&
       results.length > 0 &&
