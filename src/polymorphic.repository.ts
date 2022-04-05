@@ -58,7 +58,13 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
           );
 
           if (data && typeof data === 'object') {
-            const classType = data.classType();
+            let classType;
+            if(data.classType instanceof Function) {
+              classType = data.classType();
+            }
+            else {
+              classType = data.classType;
+            }
             keys.push({
               ...data,
               classType,
