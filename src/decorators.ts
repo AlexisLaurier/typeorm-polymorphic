@@ -19,7 +19,7 @@ const polymorphicPropertyDecorator = (
 };
 
 export const PolymorphicChildren = (
-  classType: () => Function[] | Function,
+  classType: () => Function[] | Function | string[] | string,
   options: PolymorphicDecoratorOptionsInterface = {},
 ): PropertyDecorator =>
   polymorphicPropertyDecorator({
@@ -33,7 +33,7 @@ export const PolymorphicChildren = (
   });
 
 export const PolymorphicParent = (
-  classType: () => Function[] | Function,
+  classType: () => Function[] | Function | string[] | string,
   options: PolymorphicDecoratorOptionsInterface = {},
 ): PropertyDecorator =>
   polymorphicPropertyDecorator({

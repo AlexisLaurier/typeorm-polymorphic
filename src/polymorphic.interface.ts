@@ -16,11 +16,11 @@ export interface PolymorphicInterface {
 
 export interface PolymorphicMetadataOptionsInterface
   extends PolymorphicInterface {
-  classType: () => Function | Function[];
+  classType: () => Function | Function[] | string | string[];
 }
 
 export interface PolymorphicMetadataInterface extends PolymorphicInterface {
-  classType: Function | Function[];
+  classType: Function | Function[] | string | string[];
   propertyKey: string;
 }
 
