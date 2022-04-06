@@ -219,16 +219,28 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     relationToLoad: string[],
   ): Promise<E[]> {
     if (entities.length) {
-      let entity = entities.find(() => true);
-      let value = entity.constructor.name;
-      let repo = this.findRepository(value as any) as any;
-      if (repo.hydratePolymorphsAndNestedPolymorph) {
-        entities = await repo.hydratePolymorphsAndNestedPolymorph(
-          entities,
-          repo.getPolymorphicMetadata(),
-          relationToLoad,
-        );
-      }
+      entities = await Promise.all(
+        entities.map(element => {
+          let value = element.constructor.name;
+          let repo = this.findRepository(value as any) as any;
+          return repo.hydratePolymorphsAndNestedPolymorph(
+            element,
+            repo.getPolymorphicMetadata(),
+            relationToLoad,
+          );
+        })
+      )
+      // let entity = entities.find(() => true);
+      // let value = entity.constructor.name;
+      // let repo = this.findRepository(value as any) as any;
+      // if (repo.hydratePolymorphsAndNestedPolymorph) {
+      //   Promise.all(entities.map((entity) => this.hydrateOne(ent, relations)))
+      //   entities = await repo.hydratePolymorphsAndNestedPolymorph(
+      //     entities,
+      //     repo.getPolymorphicMetadata(),
+      //     relationToLoad,
+      //   );
+      // }
     }
     return entities;
   }
