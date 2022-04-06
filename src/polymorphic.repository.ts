@@ -196,10 +196,13 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     propertyName: string,
     relations: string[],
   ): string[] {
-    return relations.filter(
-      (element) =>
-        this.getSubRelationProperty(element)?.property == propertyName,
-    );
+    return relations
+      .filter(
+        (element) =>
+          this.getSubRelationProperty(element)?.property == propertyName,
+      )
+      .map((element) => this.getSubRelationProperty(element))
+      .map((element) => element.relationName);
   }
 
   async hydrateNonPolymorph(entity: E, relationToLoad: string[]): Promise<E> {
