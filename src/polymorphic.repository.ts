@@ -36,9 +36,7 @@ const PrimaryColumn = (options: PolymorphicMetadataInterface): string =>
   options.primaryColumn || 'id';
 
 export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
-  private getPolymorphicMetadata(
-    filterToFollowingRelation: string[] = null,
-  ): Array<PolymorphicMetadataInterface> {
+  private getPolymorphicMetadata(): Array<PolymorphicMetadataInterface> {
     const keys = Reflect.getMetadataKeys(
       (this.metadata.target as Function)['prototype'],
     );
@@ -59,10 +57,9 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
 
           if (data && typeof data === 'object') {
             let classType;
-            if(data.classType instanceof Function) {
+            if (data.classType instanceof Function) {
               classType = data.classType();
-            }
-            else {
+            } else {
               classType = data.classType;
             }
             keys.push({
@@ -72,14 +69,26 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
           }
         }
 
-        return keys.filter(
-          (element) =>
-            !filterToFollowingRelation ||
-            filterToFollowingRelation.includes(element.propertyKey),
-        );
+        return keys;
       },
       [],
     );
+  }
+
+  protected getSubRelationProperty(
+    relationName: string,
+  ): { property: string; relationName: string } | null {
+    if (!relationName || !relationName.includes('.')) {
+      return null;
+    }
+    let result = {
+      property: relationName.substr(0, relationName.indexOf('.')),
+      relationName: relationName.substr(relationName.indexOf('.')),
+    };
+    if (!result.property || !result.relationName) {
+      return null;
+    }
+    return result;
   }
 
   protected isPolymorph(): boolean {
@@ -101,31 +110,31 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     return options.type === 'parent';
   }
 
-  public async hydrateMany(
-    entities: E[],
-    limitToFollowingRelation: string[] = null,
-  ): Promise<E[]> {
-    return Promise.all(
-      entities.map((ent) => this.hydrateOne(ent, limitToFollowingRelation)),
-    );
+  public async hydrateMany(entities: E[], relations: string[]): Promise<E[]> {
+    return Promise.all(entities.map((ent) => this.hydrateOne(ent, relations)));
   }
 
-  public async hydrateOne(
-    entity: E,
-    limitToFollowingRelation: string[] = null,
-  ): Promise<E> {
-    const metadata = this.getPolymorphicMetadata(limitToFollowingRelation);
+  public async hydrateOne(entity: E, relations: string[]): Promise<E> {
+    const metadata = this.getPolymorphicMetadata();
 
-    return this.hydratePolymorphs(entity, metadata);
+    return this.hydratePolymorphs(entity, metadata, relations);
   }
 
   private async hydratePolymorphs(
     entity: E,
     options: PolymorphicMetadataInterface[],
+    polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
   ): Promise<E> {
     const values = await Promise.all(
       options.map((option: PolymorphicMetadataInterface) =>
-        this.hydrateEntities(entity, option),
+        this.hydrateEntities(
+          entity,
+          option,
+          this.transformRelationToSubRelationOfGivenProperty(
+            option,
+            polymorphicRelationsAndNestedRelationsOnElements,
+          ),
+        ),
       ),
     );
 
@@ -142,9 +151,20 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     }, entity);
   }
 
+  private transformRelationToSubRelationOfGivenProperty(
+    option: PolymorphicMetadataInterface,
+    relations: string[],
+  ) {
+    return relations
+      .map((relationName) => this.getSubRelationProperty(relationName))
+      .filter((element) => element && element.property == option.propertyKey)
+      .map((subProperty) => subProperty.relationName);
+  }
+
   private async hydrateEntities(
     entity: E,
     options: PolymorphicMetadataInterface,
+    polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
   ): Promise<PolymorphicHydrationType> {
     const entityTypes: (Function | string)[] =
       options.type === 'parent'
@@ -156,7 +176,12 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     // TODO if not hasMany, should I return if one is found?
     const results = await Promise.all(
       entityTypes.map((type: Function) =>
-        this.findPolymorphs(entity, type, options),
+        this.findPolymorphs(
+          entity,
+          type,
+          options,
+          polymorphicRelationsAndNestedRelationsOnElements,
+        ),
       ),
     );
 
@@ -183,6 +208,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     parent: E,
     entityType: Function,
     options: PolymorphicMetadataInterface,
+    polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
   ): Promise<PolymorphicChildInterface[] | PolymorphicChildInterface | never> {
     const repository = this.findRepository(entityType);
 
@@ -192,6 +218,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
             where: {
               id: parent[entityIdColumn(options)],
             },
+            relations: polymorphicRelationsAndNestedRelationsOnElements,
           }
         : {
             where: {
@@ -200,6 +227,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
                 // @ts-expect-error
                 parent.name || parent.constructor.name,
             },
+            relations: polymorphicRelationsAndNestedRelationsOnElements,
           },
     );
   }
@@ -339,22 +367,47 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     optionsOrConditions?: FindConditions<E> | FindManyOptions<E>,
   ): Promise<E[]> {
     const results = await super.find(optionsOrConditions);
-    let options = optionsOrConditions as any;
-    let requestedRelation =
-      options && options.relations && Array.isArray(options.relations)
-        ? options.relations
-        : [];
+    // if (!this.isPolymorph()) {
+    //   return results;
+    // }
 
-    if (!this.isPolymorph()) {
-      return results;
-    }
-    const metadata = this.getPolymorphicMetadata(requestedRelation);
-    if (!metadata.length) {
+    const metadata = this.getPolymorphicMetadata();
+    let options = optionsOrConditions as any;
+    let relations = options?.relations || [];
+    let polymorphicRelationsAndNestedRelationsOnElements = this.filterRelationToKeepOnlyPolymorphicRelationsOrNestedRelations(
+      metadata,
+      relations,
+    );
+    if (!polymorphicRelationsAndNestedRelationsOnElements.length) {
       return results;
     }
     return Promise.all(
-      results.map((entity) => this.hydratePolymorphs(entity, metadata)),
+      results.map((entity) =>
+        this.hydratePolymorphs(entity, metadata, relations),
+      ),
     );
+  }
+
+  private filterRelationToKeepOnlyPolymorphicRelationsOrNestedRelations(
+    metadata: Array<PolymorphicMetadataInterface>,
+    relationNames: string[],
+  ) {
+    return relationNames.filter(
+      (relationName) =>
+        this.isThisRelationAPolymorphicRelations(metadata, relationName) ||
+        this.isThisRelationNested(relationName),
+    );
+  }
+
+  private isThisRelationAPolymorphicRelations(
+    metadata: Array<PolymorphicMetadataInterface>,
+    relationName: string,
+  ): boolean {
+    return !!metadata.find((element) => element.propertyKey == relationName);
+  }
+
+  private isThisRelationNested(relationName: string): boolean {
+    return !!this.getSubRelationProperty(relationName);
   }
 
   findOne(
@@ -379,28 +432,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       | FindOneOptions<E>,
     optionsOrConditions?: FindConditions<E> | FindOneOptions<E>,
   ): Promise<E | undefined> {
-    let options = optionsOrConditions as any;
-    let requestedRelation =
-      options && Array.isArray(options.relations) ? options.relations : [];
-
-    const polymorphicMetadata = this.getPolymorphicMetadata(requestedRelation);
-
-    if (Object.keys(polymorphicMetadata).length === 0) {
-      return idOrOptionsOrConditions &&
-        (typeof idOrOptionsOrConditions === 'string' ||
-          typeof idOrOptionsOrConditions === 'number' ||
-          typeof idOrOptionsOrConditions === 'object') &&
-        optionsOrConditions
-        ? super.findOne(
-            idOrOptionsOrConditions as number | string | ObjectID | Date,
-            optionsOrConditions as FindConditions<E> | FindOneOptions<E>,
-          )
-        : super.findOne(
-            idOrOptionsOrConditions as FindConditions<E> | FindOneOptions<E>,
-          );
-    }
-
-    const entity =
+    let entity =
       idOrOptionsOrConditions &&
       (typeof idOrOptionsOrConditions === 'string' ||
         typeof idOrOptionsOrConditions === 'number' ||
@@ -414,11 +446,11 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
             idOrOptionsOrConditions as FindConditions<E> | FindOneOptions<E>,
           );
 
-    if (!entity) {
-      return entity;
+    const polymorphicMetadata = this.getPolymorphicMetadata();
+    if (entity && polymorphicMetadata.length) {
+      entity = await this.hydratePolymorphs(entity, polymorphicMetadata);
     }
-
-    return this.hydratePolymorphs(entity, polymorphicMetadata);
+    return entity;
   }
 
   create(): E;
