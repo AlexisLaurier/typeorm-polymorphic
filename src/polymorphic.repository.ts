@@ -230,6 +230,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
   ): string[] {
     let result = relations
       .map((relationName) => this.getSubRelationProperty(relationName))
+      .filter(element=>element)
       .map((element) => element.property);
     return [...new Set(result)];
   }
@@ -239,6 +240,8 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     options: PolymorphicMetadataInterface[],
     polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
   ): Promise<E> {
+    let polymorphicPropertyNameToKeep = this.getCurrentPropertyNamesFromNestedRelations(polymorphicRelationsAndNestedRelationsOnElements);
+    options = options.filter(element => polymorphicPropertyNameToKeep.includes(element.propertyKey))
     const values = await Promise.all(
       options.map((option: PolymorphicMetadataInterface) =>
         this.hydrateEntities(
