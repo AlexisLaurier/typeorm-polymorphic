@@ -220,7 +220,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
   ): Promise<E[]> {
     if (entities.length) {
       entities = await Promise.all(
-        entities.map(element => {
+        entities.map((element) => {
           let value = element.constructor.name;
           let repo = this.findRepository(value as any) as any;
           return repo.hydratePolymorphsAndNestedPolymorph(
@@ -228,8 +228,8 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
             repo.getPolymorphicMetadata(),
             relationToLoad,
           );
-        })
-      )
+        }),
+      );
       // let entity = entities.find(() => true);
       // let value = entity.constructor.name;
       // let repo = this.findRepository(value as any) as any;
