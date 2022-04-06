@@ -8,6 +8,7 @@ import {
   FindManyOptions,
   FindOneOptions,
   ObjectID,
+  BaseEntity,
 } from 'typeorm';
 import { POLYMORPHIC_KEY_SEPARATOR, POLYMORPHIC_OPTIONS } from './constants';
 import {
@@ -116,8 +117,118 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
 
   public async hydrateOne(entity: E, relations: string[]): Promise<E> {
     const metadata = this.getPolymorphicMetadata();
+    return this.hydratePolymorphsAndNestedPolymorph(
+      entity,
+      metadata,
+      relations,
+    );
+  }
 
-    return this.hydratePolymorphs(entity, metadata, relations);
+  sortRelationByThoseStartWithAPolymorphAndNot(
+    options: PolymorphicMetadataInterface[],
+    relations: string[] = [],
+  ) {
+    let result = {
+      startWithPolymorphic: [],
+      others: [],
+    };
+    let polymorphicRelationName = options.map((element) => element.propertyKey);
+    // let subRelation = relations.map(relation => this.getSubRelationProperty(relation)).map(element=>element.property);
+    for (let relation of relations) {
+      let propertyPrefix = this.getSubRelationProperty(relation)?.property;
+      if (
+        polymorphicRelationName.includes(relation) ||
+        (propertyPrefix && polymorphicRelationName.includes(propertyPrefix))
+      ) {
+        result.startWithPolymorphic.push(relation);
+      } else {
+        result.others.push(relation);
+      }
+    }
+    return result;
+  }
+
+  private async hydratePolymorphsAndNestedPolymorph(
+    entity: E,
+    options: PolymorphicMetadataInterface[],
+    relations: string[] = [],
+  ) {
+    let relationSorted = this.sortRelationByThoseStartWithAPolymorphAndNot(
+      options,
+      relations,
+    );
+    let polymorphicAndNestrelationStartingWithAPolymorphicRelation =
+      relationSorted.startWithPolymorphic;
+    let nestedRelationThatComesFromElseWhere = relationSorted.others;
+    if (polymorphicAndNestrelationStartingWithAPolymorphicRelation.length) {
+      entity = await this.hydratePolymorphs(
+        entity,
+        options,
+        polymorphicAndNestrelationStartingWithAPolymorphicRelation,
+      );
+    }
+    let propertyNames = this.getCurrentPropertyNamesFromNestedRelations(
+      nestedRelationThatComesFromElseWhere,
+    );
+    for (let propertyName of propertyNames) {
+      if (propertyName in entity) {
+        let relationLinkedToThisPropertyName = this.getSubRelationForPropertyName(
+          propertyName,
+          nestedRelationThatComesFromElseWhere,
+        );
+        if (Array.isArray(entity[propertyName])) {
+          entity[propertyName] = await this.hydrateNonPolymorphs(
+            entity[propertyName],
+            relationLinkedToThisPropertyName,
+          );
+        } else if (entity[propertyName]) {
+          entity[propertyName] = await this.hydrateNonPolymorph(
+            entity[propertyName],
+            relationLinkedToThisPropertyName,
+          );
+        }
+      }
+    }
+    return entity;
+  }
+
+  private getSubRelationForPropertyName(propertyName, relations) {
+    return relations.filters(
+      (element) =>
+        this.getSubRelationProperty(element)?.property == propertyName,
+    );
+  }
+
+  async hydrateNonPolymorph(entity: E, relationToLoad: string[]): Promise<E> {
+    let payload: E[] = [entity];
+    let result = await this.hydrateNonPolymorphs(payload, relationToLoad);
+    return result.find((element) => true);
+  }
+
+  async hydrateNonPolymorphs(
+    entities: E[],
+    relationToLoad: string[],
+  ): Promise<E[]> {
+    if (entities.length) {
+      let entity = entities.find(() => true);
+      let repo = this.findRepository(() => entity.constructor.name) as any;
+      if ('hydratePolymorphsAndNestedPolymorph' in repo) {
+        entities = await repo.hydratePolymorphsAndNestedPolymorph(
+          entities,
+          relationToLoad,
+        );
+      }
+    }
+    return entities;
+  }
+
+  private getCurrentPropertyNamesFromNestedRelations(
+    relations: string[],
+  ): string[] {
+    let result = relations
+      .map((relationName) => this.getSubRelationProperty(relationName))
+      .map((element) => element.property);
+    return [...new Set(result)];
   }
 
   private async hydratePolymorphs(
