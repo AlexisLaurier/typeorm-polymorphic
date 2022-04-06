@@ -323,6 +323,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
         ? options.classType
         : [options.classType];
     // TODO if not hasMany, should I return if one is found?
+    entityTypes = entityTypes.filter((item) => item);
     const results = await Promise.all(
       entityTypes.map((type: Function) =>
         this.findPolymorphs(entity, type, options, nestedRelationToLoad),
@@ -355,6 +356,26 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     nestedRelationToLoad: string[] = [],
   ): Promise<PolymorphicChildInterface[] | PolymorphicChildInterface | never> {
     const repository = this.findRepository(entityType);
+    let commonRelationProperty = repository.metadata.relations.map(
+      (element) => element.propertyName,
+    );
+    let polymorphicRelationProperty = options.propertyKey;
+    let filteredNestedRelation = nestedRelationToLoad.filter(
+      (element: string) => {
+        if (
+          element == polymorphicRelationProperty ||
+          commonRelationProperty.includes(element)
+        ) {
+          return true;
+        }
+        let nestedRelation = this.getSubRelationProperty(element);
+        return (
+          nestedRelation &&
+          (nestedRelation.property == polymorphicRelationProperty ||
+            commonRelationProperty.includes(nestedRelation.property))
+        );
+      },
+    );
 
     return repository[options.hasMany ? 'find' : 'findOne'](
       options.type === 'parent'
@@ -362,7 +383,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
             where: {
               id: parent[entityIdColumn(options)],
             },
-            relations: nestedRelationToLoad,
+            relations: filteredNestedRelation,
           }
         : {
             where: {
@@ -371,7 +392,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
                 // @ts-expect-error
                 parent.name || parent.constructor.name,
             },
-            relations: nestedRelationToLoad,
+            relations: filteredNestedRelation,
           },
     );
   }
