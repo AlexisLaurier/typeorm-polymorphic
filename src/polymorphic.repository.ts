@@ -192,8 +192,11 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     return entity;
   }
 
-  private getSubRelationForPropertyName(propertyName, relations) {
-    return relations.filters(
+  private getSubRelationForPropertyName(
+    propertyName: string,
+    relations: string[],
+  ): string[] {
+    return relations.filter(
       (element) =>
         this.getSubRelationProperty(element)?.property == propertyName,
     );
@@ -211,8 +214,8 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
   ): Promise<E[]> {
     if (entities.length) {
       let entity = entities.find(() => true);
-      let repo = this.findRepository(() => entity.constructor.name) as any;
-      if ('hydratePolymorphsAndNestedPolymorph' in repo) {
+      let repo = this.findRepository(entity.constructor.name as any) as any;
+      if (repo.hydratePolymorphsAndNestedPolymorph) {
         entities = await repo.hydratePolymorphsAndNestedPolymorph(
           entities,
           relationToLoad,
@@ -277,13 +280,13 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     options: PolymorphicMetadataInterface,
     polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
   ): Promise<PolymorphicHydrationType> {
-    const entityTypes: (Function | string)[] =
+    let entityTypes: (Function | string)[] =
       options.type === 'parent'
         ? [entity[entityTypeColumn(options)]]
         : Array.isArray(options.classType)
         ? options.classType
         : [options.classType];
-
+    entityTypes = entityTypes.filter((item) => item);
     // TODO if not hasMany, should I return if one is found?
     const results = await Promise.all(
       entityTypes.map((type: Function) =>
@@ -362,7 +365,9 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
 
   private resolveRepositoryToken(token: Function): Function | never {
     const tokens = getMetadataArgsStorage().entityRepositories.filter(
-      (value: EntityRepositoryMetadataArgs) => value.entity === token,
+      (value: EntityRepositoryMetadataArgs) =>
+        //@ts-expect-error
+        value.entity === token || value.entity?.name === token,
     );
     return tokens[0] ? tokens[0].target : token;
   }
