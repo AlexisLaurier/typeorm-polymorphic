@@ -243,8 +243,10 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     options: PolymorphicMetadataInterface[],
     polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
   ): Promise<E> {
-    let polymorphicPropertyNameToKeep = this.getCurrentPropertyNamesFromNestedRelations(
-      polymorphicRelationsAndNestedRelationsOnElements,
+    let availablePolymorphicKeys = options.map(element => element.propertyKey);
+    let propertyKeyForThisEntity = polymorphicRelationsAndNestedRelationsOnElements.map(item => this.getSubRelationProperty(item)).filter(item => item).map(item =>item.property)
+    let polymorphicPropertyNameToKeep = polymorphicRelationsAndNestedRelationsOnElements.filter(
+      element => availablePolymorphicKeys.includes(element) || propertyKeyForThisEntity.includes(element)
     );
     options = options.filter((element) =>
       polymorphicPropertyNameToKeep.includes(element.propertyKey),
