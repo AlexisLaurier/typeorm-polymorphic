@@ -288,7 +288,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
   private async hydrateEntities(
     entity: E,
     options: PolymorphicMetadataInterface,
-    polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
+    nestedRelationToLoad: string[] = [],
   ): Promise<PolymorphicHydrationType> {
     let entityTypes: (Function | string)[] =
       options.type === 'parent'
@@ -296,16 +296,10 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
         : Array.isArray(options.classType)
         ? options.classType
         : [options.classType];
-    entityTypes = entityTypes.filter((item) => item);
     // TODO if not hasMany, should I return if one is found?
     const results = await Promise.all(
       entityTypes.map((type: Function) =>
-        this.findPolymorphs(
-          entity,
-          type,
-          options,
-          polymorphicRelationsAndNestedRelationsOnElements,
-        ),
+        this.findPolymorphs(entity, type, options, nestedRelationToLoad),
       ),
     );
 
@@ -332,7 +326,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     parent: E,
     entityType: Function,
     options: PolymorphicMetadataInterface,
-    polymorphicRelationsAndNestedRelationsOnElements: string[] = [],
+    nestedRelationToLoad: string[] = [],
   ): Promise<PolymorphicChildInterface[] | PolymorphicChildInterface | never> {
     const repository = this.findRepository(entityType);
 
@@ -342,7 +336,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
             where: {
               id: parent[entityIdColumn(options)],
             },
-            relations: polymorphicRelationsAndNestedRelationsOnElements,
+            relations: nestedRelationToLoad,
           }
         : {
             where: {
@@ -351,7 +345,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
                 // @ts-expect-error
                 parent.name || parent.constructor.name,
             },
-            relations: polymorphicRelationsAndNestedRelationsOnElements,
+            relations: nestedRelationToLoad,
           },
     );
   }
@@ -573,8 +567,14 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
           );
 
     const polymorphicMetadata = this.getPolymorphicMetadata();
+    let options = optionsOrConditions as any;
+    let relations = options?.relations || [];
     if (entity && polymorphicMetadata.length) {
-      entity = await this.hydratePolymorphs(entity, polymorphicMetadata);
+      entity = await this.hydratePolymorphs(
+        entity,
+        polymorphicMetadata,
+        relations,
+      );
     }
     return entity;
   }
