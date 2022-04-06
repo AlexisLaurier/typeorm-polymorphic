@@ -84,7 +84,10 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     }
     let result = {
       property: relationName.substr(0, relationName.indexOf('.')),
-      relationName: relationName.substr(relationName.indexOf('.')),
+      relationName:
+        relationName.indexOf('.') + 1 < relationName.length
+          ? relationName.substr(relationName.indexOf('.') + 1)
+          : null,
     };
     if (!result.property || !result.relationName) {
       return null;
