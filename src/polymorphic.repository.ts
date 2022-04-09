@@ -558,17 +558,20 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     optionsOrConditions?: FindConditions<E> | FindManyOptions<E>,
   ): Promise<E[]> {
     const metadata = this.getPolymorphicMetadata();
-    let originalOptionsOrConditions = Object.assign({}, optionsOrConditions);
-    //@ts-ignore
-    if (optionsOrConditions && Array.isArray(optionsOrConditions.relations)) {
+    let modifiedOptionsOrConditions = Object.assign({}, optionsOrConditions);
+    if (
+      modifiedOptionsOrConditions &&
       //@ts-expect-error
-      idOrOptionsOrConditions.relations = idOrOptionsOrConditions.relations.filter(
+      Array.isArray(modifiedOptionsOrConditions.relations)
+    ) {
+      //@ts-expect-error
+      modifiedOptionsOrConditions.relations = modifiedOptionsOrConditions.relations.filter(
         (element) => this.isThisRelationIntoCommonTypeOrmRelation(element),
       );
     }
-    const results = await super.find(optionsOrConditions);
+    const results = await super.find(modifiedOptionsOrConditions);
 
-    let options = originalOptionsOrConditions as any;
+    let options = optionsOrConditions as any;
     let relations = options?.relations || [];
     let polymorphicRelationsAndNestedRelationsOnElements = this.filterRelationToKeepOnlyPolymorphicRelationsOrNestedRelations(
       metadata,
@@ -628,14 +631,14 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       | FindOneOptions<E>,
     optionsOrConditions?: FindConditions<E> | FindOneOptions<E>,
   ): Promise<E | undefined> {
-    let originalOptionsOrConditions = Object.assign({}, optionsOrConditions);
+    let modifiedOptionsOrConditions = Object.assign({}, optionsOrConditions);
     if (
-      idOrOptionsOrConditions &&
+      modifiedOptionsOrConditions &&
       //@ts-expect-error
-      Array.isArray(idOrOptionsOrConditions.relations)
+      Array.isArray(modifiedOptionsOrConditions.relations)
     ) {
       //@ts-expect-error
-      idOrOptionsOrConditions.relations = idOrOptionsOrConditions.relations.filter(
+      modifiedOptionsOrConditions.relations = modifiedOptionsOrConditions.relations.filter(
         (element) => this.isThisRelationIntoCommonTypeOrmRelation(element),
       );
     }
@@ -655,7 +658,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
           );
 
     const polymorphicMetadata = this.getPolymorphicMetadata();
-    let options = originalOptionsOrConditions as any;
+    let options = optionsOrConditions as any;
     let relations = options?.relations || [];
     if (entity && polymorphicMetadata.length) {
       entity = await this.hydratePolymorphs(
