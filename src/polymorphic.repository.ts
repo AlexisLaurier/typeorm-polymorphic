@@ -558,6 +558,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     optionsOrConditions?: FindConditions<E> | FindManyOptions<E>,
   ): Promise<E[]> {
     const metadata = this.getPolymorphicMetadata();
+    let originalOptionsOrConditions = Object.assign({}, optionsOrConditions);
     //@ts-ignore
     if (optionsOrConditions && Array.isArray(optionsOrConditions.relations)) {
       //@ts-expect-error
@@ -567,7 +568,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     }
     const results = await super.find(optionsOrConditions);
 
-    let options = optionsOrConditions as any;
+    let options = originalOptionsOrConditions as any;
     let relations = options?.relations || [];
     let polymorphicRelationsAndNestedRelationsOnElements = this.filterRelationToKeepOnlyPolymorphicRelationsOrNestedRelations(
       metadata,
@@ -627,6 +628,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       | FindOneOptions<E>,
     optionsOrConditions?: FindConditions<E> | FindOneOptions<E>,
   ): Promise<E | undefined> {
+    let originalOptionsOrConditions = Object.assign({}, optionsOrConditions);
     if (
       idOrOptionsOrConditions &&
       //@ts-expect-error
@@ -653,7 +655,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
           );
 
     const polymorphicMetadata = this.getPolymorphicMetadata();
-    let options = optionsOrConditions as any;
+    let options = originalOptionsOrConditions as any;
     let relations = options?.relations || [];
     if (entity && polymorphicMetadata.length) {
       entity = await this.hydratePolymorphs(
