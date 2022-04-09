@@ -526,6 +526,30 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     );
   }
 
+  isThisRelationIntoCommonTypeOrmRelation(
+    relationName: string,
+    currentEntityRelationMetadata = null,
+  ): boolean {
+    let relationProperty =
+      this.getSubRelationProperty(relationName) || relationName;
+    let relationMetadata =
+      currentEntityRelationMetadata ||
+      this.metadata.relations.find(
+        (element) => element.propertyName == relationProperty,
+      );
+    if (
+      relationMetadata &&
+      typeof relationProperty !== 'string' &&
+      relationProperty.relationName
+    ) {
+      return this.isThisRelationIntoCommonTypeOrmRelation(
+        relationProperty.relationName,
+        relationMetadata,
+      );
+    }
+    return !!relationMetadata;
+  }
+
   find(options?: FindManyOptions<E>): Promise<E[]>;
 
   find(conditions?: FindConditions<E>): Promise<E[]>;
@@ -533,12 +557,16 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
   public async find(
     optionsOrConditions?: FindConditions<E> | FindManyOptions<E>,
   ): Promise<E[]> {
-    const results = await super.find(optionsOrConditions);
-    // if (!this.isPolymorph()) {
-    //   return results;
-    // }
-
     const metadata = this.getPolymorphicMetadata();
+    //@ts-ignore
+    if (optionsOrConditions && Array.isArray(optionsOrConditions.relations)) {
+      //@ts-expect-error
+      idOrOptionsOrConditions.relations = idOrOptionsOrConditions.relations.filter(
+        (element) => this.isThisRelationIntoCommonTypeOrmRelation(element),
+      );
+    }
+    const results = await super.find(optionsOrConditions);
+
     let options = optionsOrConditions as any;
     let relations = options?.relations || [];
     let polymorphicRelationsAndNestedRelationsOnElements = this.filterRelationToKeepOnlyPolymorphicRelationsOrNestedRelations(
@@ -599,6 +627,17 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       | FindOneOptions<E>,
     optionsOrConditions?: FindConditions<E> | FindOneOptions<E>,
   ): Promise<E | undefined> {
+    if (
+      idOrOptionsOrConditions &&
+      //@ts-expect-error
+      Array.isArray(idOrOptionsOrConditions.relations)
+    ) {
+      //@ts-expect-error
+      idOrOptionsOrConditions.relations = idOrOptionsOrConditions.relations.filter(
+        (element) => this.isThisRelationIntoCommonTypeOrmRelation(element),
+      );
+    }
+
     let entity =
       idOrOptionsOrConditions &&
       (typeof idOrOptionsOrConditions === 'string' ||
