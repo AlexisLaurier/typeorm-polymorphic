@@ -691,7 +691,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       ...(relationsFromFirstArgument?.relations || []),
     ];
     if (entity && polymorphicMetadata.length) {
-      entity = await this.hydrateOne(entity, relations)
+      entity = await this.hydrateOne(entity, relations);
     }
     return entity;
   }
