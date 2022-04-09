@@ -631,9 +631,30 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       | FindOneOptions<E>,
     optionsOrConditions?: FindConditions<E> | FindOneOptions<E>,
   ): Promise<E | undefined> {
-    let modifiedOptionsOrConditions = Object.assign({}, optionsOrConditions);
+    let modifiedIdOrOptionsOrConditions = idOrOptionsOrConditions;
+    if (typeof idOrOptionsOrConditions === 'object') {
+      modifiedIdOrOptionsOrConditions = Object.assign(
+        {},
+        idOrOptionsOrConditions,
+      );
+      if (
+        modifiedIdOrOptionsOrConditions &&
+        //@ts-expect-error
+        Array.isArray(modifiedIdOrOptionsOrConditions.relations)
+      ) {
+        //@ts-expect-error
+        modifiedIdOrOptionsOrConditions.relations = modifiedIdOrOptionsOrConditions.relations.filter(
+          (element) => this.isThisRelationIntoCommonTypeOrmRelation(element),
+        );
+      }
+    }
+
+    let modifiedOptionsOrConditions =
+      typeof optionsOrConditions === 'object'
+        ? Object.assign({}, optionsOrConditions)
+        : optionsOrConditions;
     if (
-      modifiedOptionsOrConditions &&
+      typeof modifiedOptionsOrConditions === 'object' &&
       //@ts-expect-error
       Array.isArray(modifiedOptionsOrConditions.relations)
     ) {
@@ -644,17 +665,25 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     }
 
     let entity =
-      idOrOptionsOrConditions &&
-      (typeof idOrOptionsOrConditions === 'string' ||
-        typeof idOrOptionsOrConditions === 'number' ||
-        typeof idOrOptionsOrConditions === 'object') &&
-      optionsOrConditions
+      modifiedIdOrOptionsOrConditions &&
+      (typeof modifiedIdOrOptionsOrConditions === 'string' ||
+        typeof modifiedIdOrOptionsOrConditions === 'number' ||
+        typeof modifiedIdOrOptionsOrConditions === 'object') &&
+      modifiedOptionsOrConditions
         ? await super.findOne(
-            idOrOptionsOrConditions as number | string | ObjectID | Date,
-            optionsOrConditions as FindConditions<E> | FindOneOptions<E>,
+            modifiedIdOrOptionsOrConditions as
+              | number
+              | string
+              | ObjectID
+              | Date,
+            modifiedOptionsOrConditions as
+              | FindConditions<E>
+              | FindOneOptions<E>,
           )
         : await super.findOne(
-            idOrOptionsOrConditions as FindConditions<E> | FindOneOptions<E>,
+            modifiedOptionsOrConditions as
+              | FindConditions<E>
+              | FindOneOptions<E>,
           );
 
     const polymorphicMetadata = this.getPolymorphicMetadata();
