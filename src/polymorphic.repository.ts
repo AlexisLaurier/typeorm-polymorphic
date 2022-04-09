@@ -580,11 +580,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     if (!polymorphicRelationsAndNestedRelationsOnElements.length) {
       return results;
     }
-    return Promise.all(
-      results.map((entity) =>
-        this.hydratePolymorphs(entity, metadata, relations),
-      ),
-    );
+    return this.hydrateMany(results, relations);
   }
 
   private filterRelationToKeepOnlyPolymorphicRelationsOrNestedRelations(
@@ -695,11 +691,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
       ...(relationsFromFirstArgument?.relations || []),
     ];
     if (entity && polymorphicMetadata.length) {
-      entity = await this.hydratePolymorphs(
-        entity,
-        polymorphicMetadata,
-        relations,
-      );
+      entity = await this.hydrateOne(entity, relations)
     }
     return entity;
   }
