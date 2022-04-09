@@ -689,6 +689,11 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     const polymorphicMetadata = this.getPolymorphicMetadata();
     let options = optionsOrConditions as any;
     let relations = options?.relations || [];
+    let relationsFromFirstArgument = idOrOptionsOrConditions as any;
+    relations = [
+      ...relations,
+      ...(relationsFromFirstArgument?.relations || []),
+    ];
     if (entity && polymorphicMetadata.length) {
       entity = await this.hydratePolymorphs(
         entity,
