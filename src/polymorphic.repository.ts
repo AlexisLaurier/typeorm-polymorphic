@@ -677,7 +677,7 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
               | FindOneOptions<E>,
           )
         : await super.findOne(
-            modifiedOptionsOrConditions as
+          modifiedIdOrOptionsOrConditions as
               | FindConditions<E>
               | FindOneOptions<E>,
           );
