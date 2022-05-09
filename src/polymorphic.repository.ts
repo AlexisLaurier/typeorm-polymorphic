@@ -530,20 +530,20 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     relationName: string,
     currentEntityRelationMetadata = null,
   ): boolean {
-    let relationProperty =
-      this.getSubRelationProperty(relationName) || relationName;
+    let nestPropertyDescriptor = this.getSubRelationProperty(relationName);
+    let relationPropertyForThisEntity = nestPropertyDescriptor ? nestPropertyDescriptor.property : relationName;
     let relationMetadata =
       currentEntityRelationMetadata ||
       this.metadata.relations.find(
-        (element) => element.propertyName == relationProperty,
+        (element) => element.propertyName == relationPropertyForThisEntity,
       );
     if (
       relationMetadata &&
-      typeof relationProperty !== 'string' &&
-      relationProperty.relationName
+      nestPropertyDescriptor &&
+      nestPropertyDescriptor.relationName
     ) {
       return this.isThisRelationIntoCommonTypeOrmRelation(
-        relationProperty.relationName,
+        nestPropertyDescriptor.relationName,
         relationMetadata,
       );
     }
