@@ -531,7 +531,9 @@ export abstract class AbstractPolymorphicRepository<E> extends Repository<E> {
     currentEntityRelationMetadata = null,
   ): boolean {
     let nestPropertyDescriptor = this.getSubRelationProperty(relationName);
-    let relationPropertyForThisEntity = nestPropertyDescriptor ? nestPropertyDescriptor.property : relationName;
+    let relationPropertyForThisEntity = nestPropertyDescriptor
+      ? nestPropertyDescriptor.property
+      : relationName;
     let relationMetadata =
       currentEntityRelationMetadata ||
       this.metadata.relations.find(
